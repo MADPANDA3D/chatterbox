@@ -65,12 +65,12 @@ class AlignmentCaptureTests(unittest.TestCase):
 
 class WordTimingTests(unittest.TestCase):
     def test_repeated_words_backtracking_invalid_tokens_and_eos(self):
-        attention = torch.nn.functional.one_hot(torch.tensor([0, 0, 1, 2, 2, 1, 3]), 4).float()
+        attention = torch.nn.functional.one_hot(torch.tensor([2, 0, 1, 2, 2, 1, 3]), 4).float()
         # One invalid speech token is filtered out before S3Gen; final row is EOS.
         mask = torch.tensor([True, True, False, True, True, True])
         words = word_end_samples(attention, "boom then boom.", [[0, 4], [5, 9], [10, 14], [14, 15]],
                                  mask, 24000, 8 * 960)
-        self.assertEqual(words, [[0, 4, 1920], [10, 14, 4800]])
+        self.assertEqual(words, [[0, 4, 1920], [10, 14, 3840]])
         self.assertEqual(word_end_samples(attention, "boom", [[0, 4]], mask, 24000, 1), [])
 
 

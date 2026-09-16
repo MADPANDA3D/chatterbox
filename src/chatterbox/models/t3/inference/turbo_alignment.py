@@ -129,11 +129,12 @@ def word_end_samples(attention, text, offsets, valid_tokens, sample_rate, sample
             or attention.ndim != 2 or attention.shape[1] != len(offsets)
             or attention.shape[0] not in {len(mask), len(mask) + 1}):
         return []
-    # Ignore brief backwards attention spikes; retain the latest text position.
-    peaks = attention[:len(mask)].argmax(-1).cpu()[mask].cummax(0).values
+    peaks = attention[:len(mask)].argmax(-1).cpu()[mask]
     result = []
-    previous_end = 0
-    for word in re.finditer(r"\w+(?:['’]\w+)*", text):
+    # Reject an earlier word that spikes beyond a later word; do not propagate
+    # isolated forward spikes across the utterance or move accepted cue times.
+    following_end = samples
+    for word in reversed(list(re.finditer(r"\w+(?:['’]\w+)*", text))):
         tokens = [i for i, (start, end) in enumerate(offsets)
                   if start < word.end() and end > word.start()]
         if not tokens:
@@ -142,8 +143,8 @@ def word_end_samples(attention, text, offsets, valid_tokens, sample_rate, sample
         if not len(rows):
             continue
         end_sample = (int(rows[-1]) + 1) * 960
-        if end_sample < previous_end:
+        if end_sample > following_end:
             continue
         result.append([word.start(), word.end(), end_sample])
-        previous_end = end_sample
-    return result
+        following_end = end_sample
+    return list(reversed(result))
