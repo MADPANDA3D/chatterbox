@@ -58,3 +58,37 @@ These single short runs establish feasibility, not a speedup, statistical
 performance bound, general output-parity guarantee or word-timing accuracy.
 No reference voice, generated audio, checkpoint, credential or machine-specific
 configuration is distributed with this change. No live TTS service was changed.
+
+
+## Real playback follow-up
+
+An opt-in reproducible checkpoint check now covers three sentences with seeds
+968 and 969, including adjacent repeated words:
+
+```sh
+PYTHONPATH=src python scripts/validate_turbo_alignment.py --audio-prompt /path/to/reference.wav --output /tmp/turbo-validation
+```
+
+This performs six baseline/capture pairs using the same model and reference.
+It asserts bit-identical waveform and vocoder tokens, hook cleanup, and the
+observed speech-token/frame relationship. It saves audio, attention, tokenizer
+offsets and diagnostic candidate times. It never runs a transcription model.
+Output audio/reference assets should remain private unless their owner chooses
+to publish them. This opt-in check requires the real checkpoint; ordinary CPU
+unit tests still do not download one.
+
+The six saved utterances were played through a browser with separate speech
+and sound-effect sources scheduled on the same AudioContext clock. Effects
+were placed at the second target word using head (4, 6)'s last argmax row and
+40 ms per emitted speech token. Dedicated browser-stream loopback found all six
+effect starts at the scheduled offsets, with reference correlations above
+0.999994. All six baseline/capture waveform and vocoder-token pairs were
+identical. The operator listened and explicitly accepted the audible timing
+as the desired behavior for that soundboard application.
+
+[Sanitized results](turbo-alignment-playback.json) preserve those measurements.
+This is application-specific listener acceptance, not a universal word-boundary
+accuracy claim. Approximate independent spectrogram inspection still showed
+lead/lag variation (one candidate about 70–150 ms before the estimated acoustic
+end). The browser probe has not yet been integrated into the live application.
+No private voice, generated audio, or checkpoint is included in this repository.
