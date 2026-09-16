@@ -6,6 +6,7 @@ only the already-computed projections are observed.
 """
 
 import math
+import re
 
 import torch
 
@@ -113,3 +114,36 @@ class TurboAlignmentCapture:
             result.append(by_layer[layer][offset])
             offsets[layer] = offset + 1
         return torch.stack(result)
+
+
+def word_end_samples(attention, text, offsets, valid_tokens, sample_rate, samples):
+    """Return [text start, text end, audio end sample] candidates from Turbo.
+
+    Uses the application-tested (4, 6) head. These are attention-derived timings,
+    not forced acoustic alignment. Missing/backwards words are omitted. Filtering
+    invalid speech tokens preserves their actual vocoder positions; EOS and the
+    three trailing silence tokens never acquire words.
+    """
+    mask = valid_tokens.detach().cpu().flatten().bool()
+    if (sample_rate != 24000 or samples != (int(mask.sum()) + 3) * 960
+            or attention.ndim != 2 or attention.shape[1] != len(offsets)
+            or attention.shape[0] not in {len(mask), len(mask) + 1}):
+        return []
+    # Ignore brief backwards attention spikes; retain the latest text position.
+    peaks = attention[:len(mask)].argmax(-1).cpu()[mask].cummax(0).values
+    result = []
+    previous_end = 0
+    for word in re.finditer(r"\w+(?:['’]\w+)*", text):
+        tokens = [i for i, (start, end) in enumerate(offsets)
+                  if start < word.end() and end > word.start()]
+        if not tokens:
+            continue
+        rows = torch.where((peaks[:, None] == torch.tensor(tokens)).any(-1))[0]
+        if not len(rows):
+            continue
+        end_sample = (int(rows[-1]) + 1) * 960
+        if end_sample < previous_end:
+            continue
+        result.append([word.start(), word.end(), end_sample])
+        previous_end = end_sample
+    return result

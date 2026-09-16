@@ -4,7 +4,7 @@
 Turbo generation. It does not switch attention kernels, request full attention
 matrices, modify logits, or run another neural model. It installs temporary
 hooks only on explicitly selected layers and removes them on normal or failed
-exit. Normal `generate()` behavior and return values remain unchanged.
+exit. Default `generate()` behavior and return values remain unchanged.
 
 ```sh
 python example_turbo_alignment.py --text 'First came a boom, then another boom, and finally silence.' --audio-prompt /path/to/reference.wav --output /tmp/turbo-trace
@@ -92,3 +92,25 @@ accuracy claim. Approximate independent spectrogram inspection still showed
 lead/lag variation (one candidate about 70–150 ms before the estimated acoustic
 end). The browser probe has not yet been integrated into the live application.
 No private voice, generated audio, or checkpoint is included in this repository.
+
+
+## Optional timing return
+
+```python
+waveform, timing = model.generate(text, return_alignment=True)
+```
+
+The opt-in return contains `version: 1`, normalized `text`, `sample_rate`, and
+`words` rows `[character_start, character_end, end_sample]`. It uses the tested
+Turbo head (4, 6), ignores brief backward attention spikes, maps only speech
+tokens retained by S3Gen, and excludes EOS/trailing silence from word timing.
+Unexpected frame rates or missing text evidence omit timings; they do not
+invent timestamps from text length. This remains an attention-derived timing
+estimate with the listener-tested behavior described above. Only English Turbo
+has been exercised. Existing callers still receive the waveform tensor alone.
+
+The integrated option was also checked against default generation with seed
+969: identical waveform, both repeated-word positions preserved (1.00 s and
+2.08 s). A local HTTP wrapper carried metadata in an ancillary WAV RIFF chunk
+while retaining PCM samples. No second model or extra synthesis is used to
+compute the timing.
